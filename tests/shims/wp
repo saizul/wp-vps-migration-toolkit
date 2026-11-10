@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Stub WP-CLI.
+. "$(dirname "$0")/_log"
+shim_log "$@"
+args="$*"
+case "$args" in
+  *"db import -"*) cat >/dev/null ;;
+  *"plugin is-active elementor"*) [ -n "${SHIM_ELEMENTOR:-}" ] || exit 1 ;;
+  *"option get home"* | *"option get siteurl"*) echo "${SHIM_HOME:-https://www.example.com}" ;;
+  *"cron event list"*) echo "${SHIM_CRON_COUNT:-12}" ;;
+  *"config get DISABLE_WP_CRON"*) echo "${SHIM_DISABLE_CRON:-}" ;;
+  *"core is-installed"*) exit "${SHIM_NOT_INSTALLED:-0}" ;;
+esac
+exit 0

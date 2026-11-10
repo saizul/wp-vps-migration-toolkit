@@ -1,0 +1,31 @@
+# Minimal Nginx server block for a migrated WordPress site (plain Nginx + PHP-FPM).
+# CloudPanel generates an equivalent vhost for you; use this only for plain Nginx.
+# Replace example.com and the PHP-FPM socket path.
+
+server {
+    listen 80;
+    server_name example.com www.example.com;
+    root /var/www/example.com;
+    index index.php;
+
+    # Apache .htaccess rules do not apply on Nginx.
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+    }
+
+    location ~* \.(?:css|js|jpg|jpeg|png|gif|webp|avif|svg|ico|woff2?)$ {
+        expires 30d;
+        access_log off;
+    }
+
+    # Never serve dotfiles (except ACME challenges) or sensitive files.
+    location ~ /\.(?!well-known) { deny all; }
+    location ~* /(?:uploads|files)/.*\.php$ { deny all; }
+    location = /xmlrpc.php { deny all; }
+}

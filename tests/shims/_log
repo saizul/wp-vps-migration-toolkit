@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Sourced by the shims: record one invocation per line (args joined with spaces).
+shim_log() {
+  if [ -n "${SHIM_LOG:-}" ]; then
+    printf '%s %s\n' "$(basename "$0")" "$*" >>"$SHIM_LOG"
+  fi
+}

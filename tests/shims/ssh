@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Stub ssh: canned answers keyed on the remote command (last argument).
+. "$(dirname "$0")/_log"
+shim_log "$@"
+if [ -n "${SHIM_SSH_FAIL:-}" ]; then
+  echo "ssh: connect to host: Connection refused" >&2
+  exit 255
+fi
+cmd="${*: -1}"
+case "$cmd" in
+  *wpvm-ok*) echo wpvm-ok ;;
+  *PHP_VERSION*) echo "${SHIM_SRC_PHP:-7.4.33}" ;;
+  *"command -v wp"*) [ -n "${SHIM_NO_SRC_WP:-}" ] || echo /usr/local/bin/wp ;;
+  *"command -v rsync"*) echo /usr/bin/rsync ;;
+  *"command -v mysqldump"*) echo /usr/bin/mysqldump ;;
+  *"command -v gzip"*) echo /usr/bin/gzip ;;
+  *"du -sm"*) echo "${SHIM_SRC_MB:-1200}" ;;
+  *information_schema*) echo "${SHIM_DB_MB:-85}" ;;
+  *"plugin list"*) printf '%s\n' ${SHIM_PLUGINS:-wp-rocket elementor updraftplus wordfence akismet} ;;
+  *"ls -d cache"*) printf 'cache\nobject-cache.php\nuploads/elementor/css\n' ;;
+  *mysqldump*)
+    if [ -n "${SHIM_DUMP_BAD:-}" ]; then
+      printf -- '-- MySQL dump\nCREATE TABLE t (id int);\n' | gzip -c
+    else
+      printf -- '-- MySQL dump\nCREATE TABLE t (id int);\n-- Dump completed on 2026-01-01\n' | gzip -c
+    fi
+    ;;
+  *) : ;;
+esac

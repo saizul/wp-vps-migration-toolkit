@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+. "$(dirname "$0")/_log"
+shim_log "$@"
+echo "${SHIM_DST_PHP:-8.2.10}"

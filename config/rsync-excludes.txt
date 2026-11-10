@@ -1,0 +1,42 @@
+# Patterns passed to rsync --exclude-from (relative to the WordPress root).
+# Caches
+/wp-content/cache/
+/wp-content/wp-rocket-config/
+/wp-content/advanced-cache.php
+/wp-content/object-cache.php
+/wp-content/w3tc-config/
+/wp-content/litespeed/
+/wp-content/et-cache/
+/wp-content/uploads/cache/
+/wp-content/uploads/elementor/css/
+/wp-content/uploads/wc-logs/
+# Backups and migration archives
+/wp-content/updraft/
+/wp-content/ai1wm-backups/
+/wp-content/backups/
+/wp-content/backup-db/
+/wp-content/backupwordpress-*/
+/wp-content/wpvividbackups/
+/wp-content/uploads/backupbuddy_backups/
+/wp-content/uploads/backwpup-*/
+/wp-content/uploads/wpforms/cache/
+*.sql
+*.sql.gz
+*.zip.bak
+# Logs and server debris
+error_log
+**/error_log
+php_errorlog
+debug.log
+/wp-content/debug.log
+/cgi-bin/
+/.well-known/
+/.htaccess.bak
+.DS_Store
+.git/
+.svn/
+# cPanel specifics
+/.cphorde/
+/.softaculous/
+/.trash/
+/tmp/

@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Stub curl: status codes from $SHIM_CURL_MAP ("path code" lines), default 200.
+. "$(dirname "$0")/_log"
+shim_log "$@"
+out=""; hdr=""; url=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out=$2; shift ;;
+    -D) hdr=$2; shift ;;
+    -w | --resolve | --max-time | -A) shift ;;
+    -*) ;;
+    *) url=$1 ;;
+  esac
+  shift
+done
+path="/${url#*://*/}"
+code=200
+[ "$path" = "/wp-admin/" ] && code=302
+if [ -n "${SHIM_CURL_MAP:-}" ] && [ -f "$SHIM_CURL_MAP" ]; then
+  match=$(awk -v p="$path" '$1 == p {print $2}' "$SHIM_CURL_MAP" | head -n 1)
+  [ -n "$match" ] && code=$match
+fi
+if [ "${SHIM_CURL_DOWN:-}" = 1 ]; then
+  echo "curl: (7) Failed to connect" >&2
+  exit 7
+fi
+body=""
+case "$path" in
+  /) body="${SHIM_HOME_BODY:-<html><link href=\"https://www.example.com/s.css\"></html>}" ;;
+  /wp-login.php*) body='<form><input id="user_login" name="log"></form>' ;;
+esac
+[ -n "$out" ] && printf '%s' "$body" >"$out"
+if [ -n "$hdr" ]; then
+  printf 'HTTP/2 %s\r\n' "$code" >"$hdr"
+  case "$code" in
+    30*)
+      if [ "$path" = "/wp-admin/" ]; then
+        printf 'Location: https://www.example.com/wp-login.php?redirect_to=x\r\n' >>"$hdr"
+      else
+        printf 'Location: https://www.example.com/elsewhere/\r\n' >>"$hdr"
+      fi
+      ;;
+  esac
+fi
+printf '%s' "$code"

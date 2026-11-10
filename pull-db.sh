@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+# pull-db.sh - dump the source database over SSH, verify it, import on target.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+. "$HERE/lib/common.sh"
+
+DO_EXPORT=1
+DO_IMPORT=1
+DUMP_FILE=""
+
+usage() {
+  cat <<USAGE
+Usage: pull-db.sh [options]
+
+Exports the source database with mysqldump --single-transaction, streams it
+through gzip over SSH, verifies it (gzip -t, completion marker, sha256) and
+imports it into the target WordPress database with WP-CLI.
+
+Credentials are read on the source host from wp-config.php and never pass
+through this machine's process list or the config file.
+
+Options:
+  --export-only      Only dump (no import)
+  --import-only      Only import the newest dump (or --file)
+  --file FILE        Dump to import (.sql or .sql.gz) with --import-only
+  -n, --dry-run      Print commands without running them
+  -y, --yes          Do not prompt before overwriting the target database
+  --env FILE         Config file (default: ./migrate.env)
+  -v, --verbose      Debug output
+  -h, --help         Show this help
+USAGE
+}
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    --export-only) DO_IMPORT=0 ;;
+    --import-only) DO_EXPORT=0 ;;
+    --file)
+      [ $# -ge 2 ] || die_usage "--file needs a path"
+      DUMP_FILE=$2
+      shift
+      ;;
+    *)
+      if common_flag "$@"; then
+        shift $((COMMON_SHIFT - 1))
+      else
+        die_usage "Unknown option: $1"
+      fi
+      ;;
+  esac
+  shift
+done
+
+if [ "$DO_EXPORT" = 0 ] && [ "$DO_IMPORT" = 0 ]; then
+  die_usage "--export-only and --import-only are mutually exclusive"
+fi
+
+load_config
+require_cmd gzip
+init_logging
+DB_DIR="$WORK_DIR/db"
+
+# Script executed on the source host. Reads credentials locally from wp-config.php.
+remote_dump_script() {
+  cat <<'REMOTE'
+set -euo pipefail
+cd "$1"
+cfg() {
+  if command -v "$2" >/dev/null 2>&1; then
+    $2 config get "$3" 2>/dev/null && return 0
+  fi
+  sed -n "s/^[[:space:]]*define([[:space:]]*['\"]$3['\"][[:space:]]*,[[:space:]]*['\"]\([^'\"]*\)['\"].*/\1/p" wp-config.php | head -n 1
+}
+DB_NAME=$(cfg x "$2" DB_NAME)
+DB_USER=$(cfg x "$2" DB_USER)
+DB_HOST=$(cfg x "$2" DB_HOST)
+MYSQL_PWD=$(cfg x "$2" DB_PASSWORD)
+export MYSQL_PWD
+[ -n "$DB_NAME" ] || { echo "cannot read DB_NAME" >&2; exit 3; }
+host_args=()
+case "$DB_HOST" in
+  *:/*) host_args=(-S "${DB_HOST#*:}") ;;
+  /*) host_args=(-S "$DB_HOST") ;;
+  *:*) host_args=(-h "${DB_HOST%%:*}" -P "${DB_HOST##*:}") ;;
+  "") ;;
+  *) host_args=(-h "$DB_HOST") ;;
+esac
+opts=(--single-transaction --quick --routines --triggers --default-character-set=utf8mb4)
+if mysqldump --help 2>/dev/null | grep -q -- '--no-tablespaces'; then
+  opts+=(--no-tablespaces)
+fi
+mysqldump "${opts[@]}" ${host_args[@]+"${host_args[@]}"} -u "$DB_USER" "$DB_NAME" | gzip -c
+REMOTE
+}
+
+do_export() {
+  local stamp part final
+  stamp=$(timestamp)
+  final="$DB_DIR/${SRC_SSH_HOST%%.*}-$stamp.sql.gz"
+  part="$final.part"
+  require_var SRC_SSH_HOST SRC_SSH_USER SRC_WP_PATH
+  log_info "Exporting database from $SRC_SSH_USER@$SRC_SSH_HOST (single-transaction)"
+  run mkdir -p "$DB_DIR"
+  local script remote
+  script=$(remote_dump_script)
+  # $1 = site path, $2 = remote wp binary; $0 is a placeholder
+  remote="bash -c $(printf '%q' "$script") wpvm $(printf '%q' "$SRC_WP_PATH") $(printf '%q' "$SRC_WP_CLI")"
+  if is_dry; then
+    log_dry "ssh $SRC_SSH_USER@$SRC_SSH_HOST 'cd $SRC_WP_PATH && mysqldump --single-transaction --quick --routines --triggers | gzip -c' > $part"
+    log_dry "gzip -t $part; verify completion marker; sha256 -> $final.sha256"
+    DUMP_FILE=$final
+    return 0
+  fi
+  if ! src_ssh "$remote" >"$part"; then
+    rm -f "$part"
+    die "Remote dump failed (see message above)"
+  fi
+  [ -s "$part" ] || {
+    rm -f "$part"
+    die "Dump is empty"
+  }
+  gzip -t "$part" || {
+    rm -f "$part"
+    die "Dump is not a valid gzip stream"
+  }
+  if ! gzip -dc "$part" | tail -n 1 | grep -q 'Dump completed'; then
+    rm -f "$part"
+    die "Dump looks truncated (no 'Dump completed' marker)"
+  fi
+  mv "$part" "$final"
+  printf '%s  %s\n' "$(sha256_of "$final")" "$(basename "$final")" >"$final.sha256"
+  log_ok "Dump saved: $final ($(wc -c <"$final" | tr -d ' ') bytes)"
+  log_info "Checksum: $(cut -d' ' -f1 "$final.sha256")"
+  DUMP_FILE=$final
+}
+
+pick_dump() {
+  if [ -n "$DUMP_FILE" ]; then
+    return 0
+  fi
+  DUMP_FILE=$(ls -1t "$DB_DIR"/*.sql.gz 2>/dev/null | head -n 1 || true)
+  if [ -z "$DUMP_FILE" ]; then
+    if is_dry; then
+      DUMP_FILE="$DB_DIR/<newest>.sql.gz"
+      return 0
+    fi
+    die "No dump found in $DB_DIR; run without --import-only first"
+  fi
+}
+
+verify_checksum() {
+  local f=$1 want got
+  if [ -f "$f.sha256" ]; then
+    want=$(cut -d' ' -f1 "$f.sha256")
+    got=$(sha256_of "$f")
+    [ "$want" = "$got" ] || die "Checksum mismatch for $f"
+    log_ok "Checksum verified"
+  else
+    log_warn "No .sha256 next to $f; skipping checksum verification"
+  fi
+}
+
+do_import() {
+  local backup
+  require_var DST_WP_PATH
+  pick_dump
+  log_info "Importing $DUMP_FILE into $DST_WP_PATH"
+  if ! is_dry; then
+    [ -f "$DUMP_FILE" ] || die "Dump file not found: $DUMP_FILE"
+    case "$DUMP_FILE" in
+      *.gz) gzip -t "$DUMP_FILE" || die "Corrupt gzip: $DUMP_FILE" ;;
+    esac
+    verify_checksum "$DUMP_FILE"
+  fi
+  confirm "This overwrites tables in the target database of $DST_WP_PATH. Continue?"
+  backup="$DB_DIR/pre-import-$(timestamp).sql"
+  run mkdir -p "$DB_DIR"
+  if is_dry || [ -f "$DST_WP_PATH/wp-config.php" ]; then
+    log_info "Backing up current target database to $backup"
+    dst_wp db export "$backup" || log_warn "Could not back up target DB (empty or new?)"
+  else
+    die "No wp-config.php in $DST_WP_PATH. Create it first (wp config create ...)."
+  fi
+  if is_dry; then
+    log_dry "gzip -dc $DUMP_FILE | $WP_CLI --path=$DST_WP_PATH db import -"
+  else
+    case "$DUMP_FILE" in
+      *.gz) gzip -dc "$DUMP_FILE" | dst_wp db import - ;;
+      *) dst_wp db import - <"$DUMP_FILE" ;;
+    esac
+  fi
+  dst_wp core is-installed || log_warn "WordPress not detected after import; check table_prefix in wp-config.php"
+  log_ok "Import complete. Next: ./fix-urls.sh"
+}
+
+if [ "$DO_EXPORT" = 1 ]; then
+  do_export
+fi
+if [ "$DO_IMPORT" = 1 ]; then
+  do_import
+fi

@@ -1,0 +1,6 @@
+migrate.env
+work/
+*.log
+*.sql
+*.sql.gz
+.DS_Store

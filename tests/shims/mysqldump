@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+. "$(dirname "$0")/_log"
+shim_log "$@"
+printf -- '-- stub dump\n-- Dump completed on 2026-01-01\n'
