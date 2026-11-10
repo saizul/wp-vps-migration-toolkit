@@ -6,6 +6,7 @@ rc=0
 if [ -n "${SHIM_RSYNC_RCS:-}" ]; then
   counter="${SHIM_STATE:-/tmp}/rsync.count"
   n=$(cat "$counter" 2>/dev/null || echo 0)
+  # shellcheck disable=SC2086  # intentional word splitting of the return-code list
   set -- $SHIM_RSYNC_RCS
   n=$((n + 1))
   echo "$n" >"$counter"

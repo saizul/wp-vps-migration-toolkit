@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2086  # intentional word splitting of shim lists
 # Stub ssh: canned answers keyed on the remote command (last argument).
 . "$(dirname "$0")/_log"
 shim_log "$@"

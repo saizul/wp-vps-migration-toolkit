@@ -118,6 +118,7 @@ common_flag() {
     --env)
       [ $# -ge 2 ] || die_usage "--env needs a file argument"
       ENV_FILE=$2
+      # shellcheck disable=SC2034  # read by the sourcing script after parse_common_args
       COMMON_SHIFT=2
       ;;
     -h | --help)
@@ -239,14 +240,16 @@ build_ssh_opts() {
 
 # src_ssh REMOTE_COMMAND - run a command on the source host (read-only use).
 src_ssh() {
-  require_var SRC_SSH_HOST SRC_SSH_USER
+    require_var SRC_SSH_HOST SRC_SSH_USER
   build_ssh_opts
+  # shellcheck disable=SC2153  # SRC_SSH_HOST comes from the env file
   local target="$SRC_SSH_USER@$SRC_SSH_HOST"
   if is_dry; then
     log_dry "ssh ${SSH_OPTS[*]} $target $*"
     return 0
   fi
   log_debug "ssh $target $*"
+  # shellcheck disable=SC2029  # the remote command is intentionally expanded locally
   ssh "${SSH_OPTS[@]}" "$target" "$@"
 }
 
