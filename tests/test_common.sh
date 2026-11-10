@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034  # variables are read by functions in lib/common.sh under test
 # Tests for lib/common.sh helpers and shared CLI behaviour.
 
 test_help_flag_exits_zero_for_every_script() {
