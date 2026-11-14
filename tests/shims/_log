@@ -5,3 +5,10 @@ shim_log() {
     printf '%s %s\n' "$(basename "$0")" "$*" >>"$SHIM_LOG"
   fi
 }
+# shim_pairs "key:count ..." - print tab-separated rows, like `wp db query`.
+shim_pairs() {
+  local kv
+  for kv in $1; do
+    printf '%s\t%s\n' "${kv%%:*}" "${kv#*:}"
+  done
+}

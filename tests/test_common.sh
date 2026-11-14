@@ -4,7 +4,7 @@
 
 test_help_flag_exits_zero_for_every_script() {
   local s
-  for s in preflight.sh pull-files.sh pull-db.sh fix-urls.sh verify.sh; do
+  for s in preflight.sh pull-files.sh pull-db.sh fix-urls.sh compare.sh verify.sh; do
     run_raw "$s" --help
     assert_rc 0
     assert_contains "Usage:"
@@ -14,7 +14,7 @@ test_help_flag_exits_zero_for_every_script() {
 
 test_unknown_option_is_a_usage_error() {
   local s
-  for s in preflight.sh pull-files.sh pull-db.sh fix-urls.sh verify.sh; do
+  for s in preflight.sh pull-files.sh pull-db.sh fix-urls.sh compare.sh verify.sh; do
     run_script "$s" --bogus
     assert_rc 2
     assert_contains "Unknown option: --bogus"

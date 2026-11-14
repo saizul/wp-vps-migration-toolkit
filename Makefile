@@ -1,4 +1,4 @@
-SCRIPTS := preflight.sh pull-files.sh pull-db.sh fix-urls.sh verify.sh lib/common.sh \
+SCRIPTS := preflight.sh pull-files.sh pull-db.sh fix-urls.sh compare.sh verify.sh lib/common.sh \
 	tests/run.sh tests/helpers.sh $(wildcard tests/test_*.sh) $(wildcard tests/shims/*)
 
 .PHONY: test lint syntax

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Stub WP-CLI.
+# shellcheck disable=SC2086  # intentional word splitting of shim lists
+# Stub WP-CLI (the target site).
 . "$(dirname "$0")/_log"
 shim_log "$@"
 args="$*"
@@ -10,5 +11,14 @@ case "$args" in
   *"cron event list"*) echo "${SHIM_CRON_COUNT:-12}" ;;
   *"config get DISABLE_WP_CRON"*) echo "${SHIM_DISABLE_CRON:-}" ;;
   *"core is-installed"*) exit "${SHIM_NOT_INSTALLED:-0}" ;;
+  *"core version"*) echo "${SHIM_DST_CORE-6.6.2}" ;;
+  *"db prefix"*) echo "${SHIM_DST_PREFIX:-wp_}" ;;
+  *"theme list"*) echo "${SHIM_DST_THEME:-astra}" ;;
+  *"plugin list"*) printf '%s\n' ${SHIM_DST_PLUGINS:-wp-rocket elementor updraftplus wordfence akismet} ;;
+  *"option get permalink_structure"*) echo "${SHIM_DST_PERMALINK-/%postname%/}" ;;
+  *post_type*) shim_pairs "${SHIM_DST_POSTS:-attachment:3 page:5 post:40}" ;;
+  *taxonomy*) shim_pairs "${SHIM_DST_TERMS:-category:4 post_tag:9}" ;;
+  *_comments*) echo "${SHIM_DST_COMMENTS:-12}" ;;
+  *_users*) echo "${SHIM_DST_USERS:-2}" ;;
 esac
 exit 0
