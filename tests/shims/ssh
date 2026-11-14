@@ -10,6 +10,15 @@ fi
 cmd="${*: -1}"
 case "$cmd" in
   *wpvm-ok*) echo wpvm-ok ;;
+  *"-type f"*) echo "${SHIM_SRC_UPLOADS:-3}" ;;
+  *"core version"*) echo "${SHIM_SRC_CORE-6.6.2}" ;;
+  *"db prefix"*) echo "${SHIM_SRC_PREFIX:-wp_}" ;;
+  *"theme list"*) echo "${SHIM_SRC_THEME:-astra}" ;;
+  *permalink_structure*) echo "${SHIM_SRC_PERMALINK-/%postname%/}" ;;
+  *post_type*) shim_pairs "${SHIM_SRC_POSTS:-attachment:3 page:5 post:40}" ;;
+  *taxonomy*) shim_pairs "${SHIM_SRC_TERMS:-category:4 post_tag:9}" ;;
+  *_comments*) echo "${SHIM_SRC_COMMENTS:-12}" ;;
+  *_users*) echo "${SHIM_SRC_USERS:-2}" ;;
   *PHP_VERSION*) echo "${SHIM_SRC_PHP:-7.4.33}" ;;
   *"command -v wp"*) [ -n "${SHIM_NO_SRC_WP:-}" ] || echo /usr/local/bin/wp ;;
   *"command -v rsync"*) echo /usr/bin/rsync ;;

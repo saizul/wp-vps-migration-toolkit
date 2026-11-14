@@ -13,6 +13,7 @@ old host (cPanel)  --ssh/rsync-->  VPS (this toolkit runs here)
    preflight.sh      checks          pull-files.sh   rsync, resumable
                                      pull-db.sh      mysqldump | gzip, verified
                                      fix-urls.sh     wp search-replace + flush
+                                     compare.sh      source vs target parity
                                      verify.sh       curl --resolve before DNS
 ```
 
@@ -26,6 +27,8 @@ old host (cPanel)  --ssh/rsync-->  VPS (this toolkit runs here)
 - Database dump verified with `gzip -t`, a completion marker and SHA-256, plus an
   automatic backup of the target DB before import.
 - URL rewriting that also handles JSON-escaped URLs (Elementor, blocks).
+- Content parity report: posts per type, terms, comments, users, active plugins and
+  theme, table prefix, permalinks and upload file counts compared on both ends.
 - Pre-DNS verification: status codes, mixed content, leftover old domain, login form, cron.
 - Works with bash 3.2+ (tested on macOS and Linux).
 
@@ -87,7 +90,24 @@ wp config create --dbname=NEWDB --dbuser=NEWUSER --prompt=dbpass
 
    If the final domain stays the same (`SRC_URL` equals `DST_URL`), `fix-urls.sh` has
    nothing to do and exits; only a protocol or host change needs it.
-5. **Verify before DNS**
+5. **Compare** source and target content (read-only on both ends)
+
+   ```bash
+   ./compare.sh --dry-run
+   ./compare.sh                # exact match expected after a fresh dump + sync
+   ./compare.sh --tolerance 2  # old site still live: allow 2% drift per count
+   ```
+
+   It fails when the target is missing content: fewer posts of any type (including
+   custom post types such as WooCommerce products), terms, comments, users or upload files,
+   a plugin active only on the source, a different active theme, permalink structure
+   or table prefix (a target `wp-config.php` whose `$table_prefix` does not match the
+   imported tables shows the install screen). More on the target, or a different core
+   version, is a warning. Upload subdirectories that `pull-files.sh` excludes (caches,
+   Elementor CSS, backup archives, and `wp-content/uploads/...` entries in
+   `RSYNC_EXTRA_EXCLUDES`) are left out of the count on both ends. A TSV report is
+   written to `work/reports/compare-*.tsv` (or `--report FILE`).
+6. **Verify before DNS**
 
    ```bash
    ./verify.sh --dry-run
@@ -95,10 +115,10 @@ wp config create --dbname=NEWDB --dbuser=NEWUSER --prompt=dbpass
    ./verify.sh --check /pricing/=200 --check /old-url/=301
    ```
 
-6. **Cutover**: maintenance mode on the old site, run `./pull-files.sh --only wp-content/uploads`,
-   `./pull-db.sh`, `./fix-urls.sh`, `./verify.sh`, issue TLS, then switch DNS.
+7. **Cutover**: maintenance mode on the old site, run `./pull-files.sh --only wp-content/uploads`,
+   `./pull-db.sh`, `./fix-urls.sh`, `./compare.sh`, `./verify.sh`, issue TLS, then switch DNS.
    Follow [dns-checklist.md](dns-checklist.md) and keep [rollback.md](rollback.md) at hand.
-7. **After**: `./verify.sh --secure`, purge caches, resubmit sitemaps, re-check Search Console.
+8. **After**: `./verify.sh --secure`, purge caches, resubmit sitemaps, re-check Search Console.
 
 ## Script reference
 
@@ -108,6 +128,7 @@ wp config create --dbname=NEWDB --dbuser=NEWUSER --prompt=dbpass
 | `pull-files.sh` | rsync over SSH | `--only PATH`, `--delete`, `--with-wp-config`, `--with-htaccess`, `--bwlimit`, `--fix-perms` |
 | `pull-db.sh` | Dump, verify, import | `--export-only`, `--import-only`, `--file`, `-y` |
 | `fix-urls.sh` | WP-CLI search-replace | `--old`, `--new`, `--no-variants`, `--skip-flush`, `-y` |
+| `compare.sh` | Read-only source/target parity report | `--tolerance PCT`, `--skip-wp`, `--skip-files`, `--report FILE` |
 | `verify.sh` | Pre-DNS smoke tests | `--ip`, `--url`, `--check PATH=CODES`, `--secure`, `--old-host` |
 
 Common options: `-n/--dry-run`, `-v/--verbose`, `-y/--yes`, `--env FILE`, `-h/--help`.
@@ -117,7 +138,8 @@ Exit codes: `0` success, `1` failure, `2` usage error.
 
 All settings live in `migrate.env` (see [migrate.env.example](migrate.env.example)):
 source SSH details, WordPress paths, URLs, `DST_IP`, and optional tuning
-(`RSYNC_EXTRA_EXCLUDES`, `RSYNC_RETRIES`, `WP_CLI_ARGS`, `VERIFY_EXTRA_URLS`).
+(`RSYNC_EXTRA_EXCLUDES`, `RSYNC_RETRIES`, `WP_CLI_ARGS`, `VERIFY_EXTRA_URLS`,
+`COMPARE_TOLERANCE`).
 `MIGRATE_ENV=/path/to/file` can replace `--env`.
 
 ### What gets excluded from the file sync
@@ -138,6 +160,8 @@ make lint     # shellcheck
 ## Limitations
 
 - Single-site installs. Multisite needs `--network` search-replace and domain table edits.
+- `compare.sh` counts rows in core tables only; plugin tables (for example WooCommerce
+  HPOS orders in `wc_orders`) are not compared. Check those with `wp db query` by hand.
 - The toolkit does not issue TLS certificates, change DNS, or migrate mailboxes.
 - cPanel accounts without SSH access cannot use it; use an archive export instead.
 - Translate Apache-specific `.htaccess` rules (redirects, security headers) to Nginx by hand.

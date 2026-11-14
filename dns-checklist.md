@@ -39,7 +39,7 @@ the **only** DNS change is the web `A` record(s).
 
 - [ ] Final sync: `./pull-files.sh --only wp-content/uploads` and, if content changes
       continuously (WooCommerce, forms, comments), put the old site in maintenance mode,
-      run `./pull-db.sh`, `./fix-urls.sh`, then `./verify.sh`.
+      run `./pull-db.sh`, `./fix-urls.sh`, `./compare.sh`, then `./verify.sh`.
 - [ ] Issue the TLS certificate on the VPS (CloudPanel: Let's Encrypt in the site
       settings; plain Nginx: certbot). HTTP-01 needs DNS to point at the VPS, so
       either use DNS-01, or import the old certificate temporarily, or accept a short

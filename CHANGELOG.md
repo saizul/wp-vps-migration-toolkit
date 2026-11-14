@@ -4,6 +4,20 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `compare.sh`: read-only parity report between the source and the target site.
+  Compares WordPress core version, active theme, active plugins, table prefix,
+  permalink structure, posts per post type, terms per taxonomy, comments, users,
+  and the number of files in `wp-content/uploads` (pruning the same cache and
+  backup directories that `pull-files.sh` excludes, plus upload paths listed in
+  `RSYNC_EXTRA_EXCLUDES`). Missing content fails; extra content on the target
+  warns. `--tolerance PCT` / `COMPARE_TOLERANCE` for a site that is still live,
+  `--skip-wp`, `--skip-files`, and a TSV report in `work/reports/` or `--report FILE`.
+- Test shims answer the new WP-CLI and SQL probes for both ends (`SHIM_SRC_*`,
+  `SHIM_DST_*`).
+
 ## [0.1.0] - 2026-11-10
 
 ### Added

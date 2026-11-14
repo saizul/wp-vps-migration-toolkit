@@ -20,6 +20,8 @@ cutover.
 - [ ] Note the dump you imported: `work/db/*.sql.gz` and its `.sha256`.
 - [ ] `pull-db.sh` writes `work/db/pre-import-*.sql`, a backup of the target database
       before each import. Keep it.
+- [ ] Keep the last `work/reports/compare-*.tsv` from `./compare.sh`: it records the
+      post, comment, user and upload counts both servers had at cutover.
 
 ## Triggers for rollback
 
@@ -28,7 +30,8 @@ Roll back if any of these cannot be fixed within your agreed window (for example
 - Checkout, login, or form submissions fail.
 - Sustained 5xx responses or a redirect loop.
 - Email stops sending/receiving.
-- Database corruption or missing content.
+- Database corruption or missing content (`./compare.sh` reports a `FAIL` for
+  posts, terms, comments, users or upload files that a re-sync does not fix).
 
 ## Procedure
 
